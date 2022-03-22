@@ -13,9 +13,11 @@ typedef struct Vertex{
     int y;
 } Vertex;
 
-double TSP_nearest_neighbor(Vertex vertices[], int);
+double tsp_NN(Vertex vertices[], int);
+double tsp_NND(Vertex vertices[], int);
 
-double TSP_nearest_neighbor(Vertex vertices[], int vertex_list_size){
+double tsp_NN(Vertex vertices[], int vertex_list_size){
+    //Setting up all the distances so we don't have to calculate the same distance multiple times
     double distance_matrix[VERTEX_COUNT][VERTEX_COUNT] = {0}; // distance_matrix[i][j] = distance_matrix[j][i]
     for (int i = 0; i < vertex_list_size; i++){
         for (int j = 0; j < vertex_list_size; j++){
@@ -23,8 +25,10 @@ double TSP_nearest_neighbor(Vertex vertices[], int vertex_list_size){
         }
     }
 
+    //The result is dependent on the vertex we start at, so we're starting from each vertex and getting the best solution
     double optimal_distance = DBL_MAX;
     for(int starting_vertex_index = 0; starting_vertex_index < vertex_list_size; starting_vertex_index++){
+        
         int sequence_length = 1; //we start with one vertex
         double current_distance = 0;
         
@@ -54,6 +58,67 @@ double TSP_nearest_neighbor(Vertex vertices[], int vertex_list_size){
             optimal_distance = current_distance;
         }
     }
+    return optimal_distance;
+}
+
+double tsp_NND(Vertex vertices[], int vertex_list_size){
+    double distance_matrix[VERTEX_COUNT][VERTEX_COUNT] = {0}; // distance_matrix[i][j] = distance_matrix[j][i]
+    for (int i = 0; i < vertex_list_size; i++){
+        for (int j = 0; j < vertex_list_size; j++){
+            distance_matrix[i][j] = sqrt(((vertices[i].x - vertices[j].x) * (vertices[i].x - vertices[j].x)) + ((vertices[i].y - vertices[j].y) * (vertices[i].y - vertices[j].y)));
+        }
+    }
+    
+    double optimal_distance = DBL_MAX;
+    for(int starting_vertex_index = 0; starting_vertex_index < vertex_list_size; starting_vertex_index++){
+        double current_distance = 0;
+
+    
+        bool visited[VERTEX_COUNT] = {0};
+        visited[starting_vertex_index] = true; // we always start from the first vertex
+        
+        int sequence_length = 1;
+        int end_vertex_index = starting_vertex_index; // We start from 0
+        int start_vertex_index = starting_vertex_index; // Start and end points are the same in the beginning
+        int next_index = 0;
+        bool need_to_update_end_point = false; //Just a boolean so we can know if we need to update the end-point or the start-point (exclusive OR)
+        
+        while(sequence_length < vertex_list_size){
+            double min_distance = DBL_MAX;
+            //Searching for vertex which is closest to the start-point or the end-point
+            for(int i = 0; i < vertex_list_size; i++){
+                if(!visited[i]){
+                    //Checking the vertices adjacent to the end-point
+                    if(distance_matrix[start_vertex_index][i] < min_distance){
+                        min_distance = distance_matrix[start_vertex_index][i];
+                        next_index = i;
+                        need_to_update_end_point = false;
+                    }
+                    //Checking the vertices adjacent to the start-point
+                    if(distance_matrix[end_vertex_index][i] < min_distance){
+                        min_distance = distance_matrix[end_vertex_index][i];
+                        next_index = i;
+                        need_to_update_end_point = true;
+                    }
+                }
+            }
+            if(need_to_update_end_point){
+                end_vertex_index = next_index;
+                visited[end_vertex_index] = true;
+            }else{
+                start_vertex_index = next_index;
+                visited[start_vertex_index] = true;
+            }
+            current_distance = current_distance + min_distance;    
+            sequence_length++;
+        }
+        current_distance = current_distance + distance_matrix[start_vertex_index][end_vertex_index];
+        if(current_distance < optimal_distance){
+            optimal_distance = current_distance;
+        }
+        printf("New best solution, start %i: %lf\n", starting_vertex_index, optimal_distance);
+    }
+
     return optimal_distance;
 }
 
@@ -91,7 +156,7 @@ int main(int argc, char *argv[]){
         line_count++;
     }
 
-    double result_distance = TSP_nearest_neighbor(vertex_list, VERTEX_COUNT);
+    double result_distance = tsp_NND(vertex_list, VERTEX_COUNT);
     printf("\nResult distance: %f\n", result_distance);
     fclose(file);
     return 0;

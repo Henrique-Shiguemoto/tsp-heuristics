@@ -2,3 +2,4 @@ README.txt
 *.o
 *.exe
 .vscode
+*.txt
