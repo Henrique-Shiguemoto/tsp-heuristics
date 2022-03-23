@@ -28,6 +28,7 @@ double tsp_NN(Vertex vertices[], int vertex_list_size){
     //Setting up all the distances so we don't have to calculate the same distance multiple times
     for (int i = 0; i < vertex_list_size; i++){
         for (int j = 0; j < vertex_list_size; j++){
+            //SEGMENTATION FAULT RIGHT HERE WHEN USING PLA33810
             distance_matrix[i][j] = sqrt(((vertices[i].x - vertices[j].x) * (vertices[i].x - vertices[j].x)) + ((vertices[i].y - vertices[j].y) * (vertices[i].y - vertices[j].y)));
         }
     }
@@ -139,7 +140,7 @@ double tsp_NND(Vertex vertices[], int vertex_list_size){
 
 int main(int argc, char *argv[]){
     char input_file_directory[30] = "data\\";             // Maybe could be a #define idk
-    strcat(input_file_directory, "att48.in"); // data\<input_file>
+    strcat(input_file_directory, "pla33810.in");          // data\<input_file>
 
     FILE *file = fopen(input_file_directory, "r"); // files from the data directory are read only files
     if (file == NULL){
@@ -167,12 +168,14 @@ int main(int argc, char *argv[]){
     // Fillig vertex_list with vertices (vertex structs) based on the input file data (id, x coordinate, y coordinate)
     while (fgets(line, sizeof(line), file))
     {
-        // We don't care about the first 6 lines (they are only there for header information purposes)
-        if (line_count >= HEADER_LINE_COUNT && strcmp(line, "EOF") != 0){
+        // We don't care about the first 6 lines (they are only there for header information purposes) and
+        // neither the last one (EOF string)
+        if (line_count >= HEADER_LINE_COUNT && strcmp(line, "EOF\n") != 0 && strcmp(line, "EOF \n") != 0){
             // Separating id, x coordinate and y coordinate (strtok is destructive btw)
             char *first_piece = strtok(line, " ");
             char *second_piece = strtok(NULL, " ");
             char *third_piece = strtok(NULL, " ");
+            printf("Vertex %i -> ID: %s , X: %s , Y: %s\n", line_count - 5, first_piece, second_piece, third_piece);
 
             // Nice way to initialize structs I found
             Vertex vertex = {.id = (double)atoi(first_piece), 
@@ -184,7 +187,7 @@ int main(int argc, char *argv[]){
         line_count++;
     }
     
-    double result_distance = tsp_NND(vertex_list, vertex_count);
+    double result_distance = tsp_NN(vertex_list, vertex_count);
     printf("\nResult distance: %f\n", result_distance);
     
     free(vertex_list);
