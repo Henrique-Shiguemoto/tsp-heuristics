@@ -4,7 +4,6 @@
 #include <math.h>       //just for sqrt
 #include <stdbool.h>
 #include <float.h>      //just for DBL_MAX
-#include <time.h>       //for generating random seeds
 
 #define HEADER_LINE_COUNT 6
 #define MATRIX_SIZE_BOUND 10000
@@ -15,124 +14,122 @@ typedef struct Vertex{
     double y;
 } Vertex;
 
-bool vertex_list_size_is_valid(int);
-double tsp_NN(Vertex vertices[], int);
-double tsp_NND(Vertex vertices[], int);
+typedef struct Cycle{
+    double result;
+    int cycle_size;
+    Vertex vertex_cycle[];
+} Cycle;
 
-bool vertex_list_size_is_valid(int vertex_list_size){
-    return (vertex_list_size < MATRIX_SIZE_BOUND);
+Cycle* initialize_cycle(int);
+void destroy_cycle(Cycle*);
+double tsp_2Opt(Vertex vertices[], int);
+double tsp_3Opt(Vertex vertices[], int);
+Cycle* tsp_NN(Vertex vertices[], int);
+Cycle* tsp_NND(Vertex vertices[], int);
+
+Cycle* initialize_cycle(int size){
+    Cycle* cycle = malloc(sizeof(double) + sizeof(int) + sizeof(Vertex) * size);
+    
+    if(!cycle){
+        perror("Error: ");
+        exit(EXIT_FAILURE);
+    }
+
+    cycle->result = 0;
+    cycle->cycle_size = size;
+
+    for(int i = 0; i < size; i++){
+        cycle->vertex_cycle[i].id = 0;
+        cycle->vertex_cycle[i].x = 0;
+        cycle->vertex_cycle[i].y = 0;
+    }
+
+    return cycle;
 }
 
-double tsp_NN(Vertex vertices[], int vertex_list_size){
+void destroy_cycle(Cycle* cycle){
+    //Rule of thumb: ONE FREE PER MALLOC
+    free(cycle);
+    cycle = NULL;
+}
+
+double tsp_2Opt(Vertex vertex_cycle[], int cycle_size){
     
-    time_t t;
-    srand((unsigned) time(NULL)); // Setting up random seed
-    int starting_vertex_index = rand() % vertex_list_size;
+    return 0.0;
+}
+
+double tsp_3Opt(Vertex vertex_cycle[], int cycle_size){
+    
+    return 0.0;
+}
+
+Cycle* tsp_NN(Vertex vertices[], int vertex_list_size){
+    Cycle* cycle = initialize_cycle(vertex_list_size);
+    
+    int starting_vertex_index = 1; // We start from the second vertex in this example
 
     int sequence_length = 1; //we start with one vertex
     double current_distance = 0;
 
     bool* visited = calloc(vertex_list_size, sizeof(bool));
     visited[starting_vertex_index] = true; // we always start from the first vertex
-
-    //Dynamically allocating 2D matrix
-    double** distance_matrix = calloc(vertex_list_size, sizeof(double*));
-    if(vertex_list_size_is_valid(vertex_list_size)){
-        for(int i = 0; i < vertex_list_size; i++){
-            distance_matrix[i] = calloc(vertex_list_size, sizeof(double));
-        }
-
-        //Setting up all the distances so we don't have to calculate the same distance multiple times
-        for (int i = 0; i < vertex_list_size; i++){ 
-            for (int j = 0; j < vertex_list_size; j++){
-                distance_matrix[i][j] = sqrt(((vertices[i].x - vertices[j].x) * (vertices[i].x - vertices[j].x)) + 
-                                            ((vertices[i].y - vertices[j].y) * (vertices[i].y - vertices[j].y)));
-            }
-        }
-    }
+    int cycle_iterator = 0;
+    cycle->vertex_cycle[cycle_iterator] = vertices[starting_vertex_index]; //Starting the cycle build
     
-    int current_vertex_index = starting_vertex_index; // We start from 0
+    int current_vertex_index = starting_vertex_index;
     int next_index = 0;
     while (sequence_length < vertex_list_size){
         double min_distance = DBL_MAX;
         for (int i = 0; i < vertex_list_size; i++){
             // We only care about vertices that weren't visited yet
             if (!visited[i]){
-                if(vertex_list_size_is_valid(vertex_list_size)){
-                    if (distance_matrix[current_vertex_index][i] < min_distance){
-                        min_distance = distance_matrix[current_vertex_index][i];
-                        next_index = i;
-                    }
-                }else{
-                    double distance = sqrt((vertices[current_vertex_index].x - vertices[i].x)*(vertices[current_vertex_index].x - vertices[i].x) + 
-                                            (vertices[current_vertex_index].y - vertices[i].y)*(vertices[current_vertex_index].y - vertices[i].y));
-                    if(distance < min_distance){
-                        min_distance = distance;
-                        next_index = i;
-                    }
+                double distance = sqrt((vertices[current_vertex_index].x - vertices[i].x)*(vertices[current_vertex_index].x - vertices[i].x) + 
+                                        (vertices[current_vertex_index].y - vertices[i].y)*(vertices[current_vertex_index].y - vertices[i].y));
+                if(distance < min_distance){
+                    min_distance = distance;
+                    next_index = i;
                 }
             }
         }
-        current_vertex_index = next_index;
+        current_vertex_index = next_index;        
+
         visited[current_vertex_index] = true;
+        cycle_iterator++;
+        cycle->vertex_cycle[cycle_iterator] = vertices[current_vertex_index];
+        
         current_distance = current_distance + min_distance;
         sequence_length++;
     }
 
-    //Connecting end-points
-    if(vertex_list_size_is_valid(vertex_list_size)){
-        current_distance = current_distance + distance_matrix[starting_vertex_index][current_vertex_index]; 
-    }else{
-        current_distance = current_distance + sqrt((vertices[starting_vertex_index].x - vertices[current_vertex_index].x)*
-                                                    (vertices[starting_vertex_index].x - vertices[current_vertex_index].x) + 
-                                                    (vertices[starting_vertex_index].y - vertices[current_vertex_index].y)*
-                                                    (vertices[starting_vertex_index].y - vertices[current_vertex_index].y));
-    }
-
-    for(int i = 0; i < vertex_list_size; i++){
-        free(distance_matrix[i]);
-        distance_matrix[i] = NULL;
-    }
-    free(distance_matrix);
-    distance_matrix = NULL;
+    current_distance = current_distance + sqrt((vertices[starting_vertex_index].x - vertices[current_vertex_index].x)*
+                                                (vertices[starting_vertex_index].x - vertices[current_vertex_index].x) + 
+                                                (vertices[starting_vertex_index].y - vertices[current_vertex_index].y)*
+                                                (vertices[starting_vertex_index].y - vertices[current_vertex_index].y));
+    cycle->result = current_distance;
 
     free(visited);
     visited = NULL;
 
-    return current_distance;
+    return cycle;
 }
 
-double tsp_NND(Vertex vertices[], int vertex_list_size){
-
-    time_t t;
-    srand((unsigned) time(NULL)); // Setting up random seed
-    int starting_vertex_index = rand() % vertex_list_size;
-    int end_vertex_index = starting_vertex_index; // We start from 0
-    int start_vertex_index = starting_vertex_index; // Start and end points are the same in the beginning
+Cycle* tsp_NND(Vertex vertices[], int vertex_list_size){
+    Cycle* cycle = initialize_cycle(vertex_list_size);
+    
+    int starting_vertex_index = 1; // We start from the second vertex in this example
+    int end = starting_vertex_index; 
+    int start = starting_vertex_index; // Start and end points are the same in the beginning
 
     int sequence_length = 1;
     double current_distance = 0;
     
     bool* visited = calloc(vertex_list_size, sizeof(bool));
     visited[starting_vertex_index] = true; // we always start from the first vertex
+    int cycle_iterator = 0;
+    cycle->vertex_cycle[cycle_iterator] = vertices[starting_vertex_index];
 
     int next_index = 0;
     bool need_to_update_end_point = false; //Just a boolean so we can know if we need to update the end-point or the start-point (exclusive OR)
-    
-    //Dynamically allocating 2D matrix
-    double** distance_matrix = calloc(vertex_list_size, sizeof(double*));
-    if(vertex_list_size_is_valid(vertex_list_size)){
-        for(int i = 0; i < vertex_list_size; i++){
-            distance_matrix[i] = calloc(vertex_list_size, sizeof(double));
-        }
-
-        //Setting up all the distances so we don't have to calculate the same distance multiple times
-        for (int i = 0; i < vertex_list_size; i++){
-            for (int j = 0; j < vertex_list_size; j++){
-                distance_matrix[i][j] = sqrt(((vertices[i].x - vertices[j].x) * (vertices[i].x - vertices[j].x)) + ((vertices[i].y - vertices[j].y) * (vertices[i].y - vertices[j].y)));
-            }
-        }
-    }
 
     while(sequence_length < vertex_list_size){
         double min_distance = DBL_MAX;
@@ -140,57 +137,56 @@ double tsp_NND(Vertex vertices[], int vertex_list_size){
         for(int i = 0; i < vertex_list_size; i++){
             if(!visited[i]){
                 //Checking the vertices adjacent to the end-point
-                if(vertex_list_size_is_valid(vertex_list_size)){
-                    if(distance_matrix[start_vertex_index][i] < min_distance){
-                        min_distance = distance_matrix[start_vertex_index][i];
-                        next_index = i;
-                        need_to_update_end_point = false;
-                    }
-                    //Checking the vertices adjacent to the start-point
-                    if(distance_matrix[end_vertex_index][i] < min_distance){
-                        min_distance = distance_matrix[end_vertex_index][i];
-                        next_index = i;
-                        need_to_update_end_point = true;
-                    }
-                }else{
-                    double distance_from_start = sqrt((vertices[start_vertex_index].x - vertices[i].x)*(vertices[start_vertex_index].x - vertices[i].x) +
-                                                        (vertices[start_vertex_index].y - vertices[i].y)*(vertices[start_vertex_index].y - vertices[i].y));
-                    double distance_from_end = sqrt((vertices[end_vertex_index].x - vertices[i].x)*(vertices[end_vertex_index].x - vertices[i].x) +
-                                                        (vertices[end_vertex_index].y - vertices[i].y)*(vertices[end_vertex_index].y - vertices[i].y));
-                    if(distance_from_start < min_distance){
-                        min_distance = distance_from_start;
-                        next_index = i;
-                        need_to_update_end_point = false;
-                    }
-                    if(distance_from_end < min_distance){
-                        min_distance = distance_from_end;
-                        next_index = i;
-                        need_to_update_end_point = true;
-                    }
+                double distance_from_start = sqrt((vertices[start].x - vertices[i].x)*(vertices[start].x - vertices[i].x) +
+                                                    (vertices[start].y - vertices[i].y)*(vertices[start].y - vertices[i].y));
+                double distance_from_end = sqrt((vertices[end].x - vertices[i].x)*(vertices[end].x - vertices[i].x) +
+                                                    (vertices[end].y - vertices[i].y)*(vertices[end].y - vertices[i].y));
+                if(distance_from_start < min_distance){
+                    min_distance = distance_from_start;
+                    next_index = i;
+                    need_to_update_end_point = false;
+                }
+                if(distance_from_end < min_distance){
+                    min_distance = distance_from_end;
+                    next_index = i;
+                    need_to_update_end_point = true;
                 }
             }
         }
+
         if(need_to_update_end_point){
-            end_vertex_index = next_index;
-            visited[end_vertex_index] = true;
+            end = next_index;
+            visited[end] = true;
+            cycle_iterator++;
+            cycle->vertex_cycle[cycle_iterator] = vertices[end];
         }else{
-            start_vertex_index = next_index;
-            visited[start_vertex_index] = true;
+            start = next_index;
+            visited[start] = true;
+            cycle_iterator++;
+            cycle->vertex_cycle[cycle_iterator] = vertices[start];
         }
         current_distance = current_distance + min_distance;
         sequence_length++;
     }
 
     //Connecting end-points
-    if(vertex_list_size_is_valid(vertex_list_size)){
-        current_distance = current_distance + distance_matrix[start_vertex_index][end_vertex_index];
-    }else{
-        current_distance = current_distance + sqrt((vertices[start_vertex_index].x - vertices[end_vertex_index].x)*
-                                                    (vertices[start_vertex_index].x - vertices[end_vertex_index].x) + 
-                                                    (vertices[start_vertex_index].y - vertices[end_vertex_index].y)*
-                                                    (vertices[start_vertex_index].y - vertices[end_vertex_index].y));
+    current_distance = current_distance + sqrt((vertices[start].x - vertices[end].x)*
+                                                (vertices[start].x - vertices[end].x) + 
+                                                (vertices[start].y - vertices[end].y)*
+                                                (vertices[start].y - vertices[end].y));
+    cycle->result = current_distance;
+
+    free(visited);
+    visited = NULL;
+
+    return cycle;
+}
+
+void printCycle(Cycle* cycle){
+    for(int i = 0; i < cycle->cycle_size; i++){
+        printf("cycle->vertex_cycle[%i].id = %i\n", i, cycle->vertex_cycle[i].id);
     }
-    return current_distance;
+    printf("\nResult distance: %f\n", cycle->result);
 }
 
 int main(int argc, char *argv[]){
@@ -228,20 +224,22 @@ int main(int argc, char *argv[]){
             char *second_piece = strtok(NULL, " ");
             char *third_piece = strtok(NULL, " ");
             
-            Vertex vertex = {.id = (double)atoi(first_piece), 
+            Vertex vertex = {.id = atoi(first_piece), 
                             .x = (double)atoi(second_piece), 
-                            .y = (double)atoi(third_piece)};            
-            
+                            .y = (double)atoi(third_piece)};
+
             vertex_list[vertex.id - 1] = vertex;
         }
         line_count++;
     }
 
-    double result_distance = tsp_NND(vertex_list, vertex_count);
-    printf("\nResult distance: %f\n", result_distance);
-        
+    Cycle* resultant_cycle = tsp_NND(vertex_list, vertex_count);
+    printCycle(resultant_cycle);
+    destroy_cycle(resultant_cycle);
+
     free(vertex_list);
     vertex_list = NULL;
+
     fclose(file);
     return 0;
 }

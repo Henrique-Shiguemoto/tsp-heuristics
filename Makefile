@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -g
+CFLAGS=-Wall -g -Wextra
 OBJS=main.o
 BIN=main
 
