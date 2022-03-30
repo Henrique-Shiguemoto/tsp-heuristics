@@ -6,7 +6,6 @@
 #include <float.h>      //just for DBL_MAX
 
 #define HEADER_LINE_COUNT 6
-#define MATRIX_SIZE_BOUND 10000
 
 typedef struct Vertex{
     int id;
@@ -22,10 +21,14 @@ typedef struct Cycle{
 
 Cycle* initialize_cycle(int);
 void destroy_cycle(Cycle*);
-double tsp_2Opt(Vertex vertices[], int);
-double tsp_3Opt(Vertex vertices[], int);
+double calculate_cycle_distance(Cycle*);
+Cycle* tsp_2Opt_Optimal(Cycle*);
+Cycle* two_opt_swap(Cycle*, int, int);
+bool two_change_greedy(Cycle*);
+Cycle* tsp_2Opt_Greedy(Cycle*);
 Cycle* tsp_NN(Vertex vertices[], int);
 Cycle* tsp_NND(Vertex vertices[], int);
+void printCycle(Cycle*);
 
 Cycle* initialize_cycle(int size){
     Cycle* cycle = malloc(sizeof(double) + sizeof(int) + sizeof(Vertex) * size);
@@ -53,14 +56,121 @@ void destroy_cycle(Cycle* cycle){
     cycle = NULL;
 }
 
-double tsp_2Opt(Vertex vertex_cycle[], int cycle_size){
+double calculate_cycle_distance(Cycle* cycle){
+    double result = 0;
     
-    return 0.0;
+    for (int i = 0; i < cycle->cycle_size - 1; i++)
+    {
+        result = result + sqrt((cycle->vertex_cycle[i].x - cycle->vertex_cycle[i + 1].x) * (cycle->vertex_cycle[i].x - cycle->vertex_cycle[i + 1].x) + 
+                               (cycle->vertex_cycle[i].y - cycle->vertex_cycle[i + 1].y) * (cycle->vertex_cycle[i].y - cycle->vertex_cycle[i + 1].y));
+    }
+
+    result = result + sqrt((cycle->vertex_cycle[0].x - cycle->vertex_cycle[cycle->cycle_size - 1].x) * (cycle->vertex_cycle[0].x - cycle->vertex_cycle[cycle->cycle_size - 1].x) + 
+                           (cycle->vertex_cycle[0].y - cycle->vertex_cycle[cycle->cycle_size - 1].y) * (cycle->vertex_cycle[0].y - cycle->vertex_cycle[cycle->cycle_size - 1].y));
+    
+    return result;
 }
 
-double tsp_3Opt(Vertex vertex_cycle[], int cycle_size){
+Cycle* tsp_2Opt_Optimal(Cycle* input_cycle){
+    Cycle* best_cycle = initialize_cycle(input_cycle->cycle_size);
+
+    bool improved = true;
+    while(improved){
+        improved = false;
+        double current_distance = input_cycle->result;
+        int size = input_cycle->cycle_size;
+        for(int i = 0; i < size - 1; i++){
+            for(int j = i + 1; j < size; j++){
+                
+                Cycle* cycle = two_opt_swap(input_cycle, i, j);
+                cycle->result = calculate_cycle_distance(cycle);
+                
+                if(cycle->result < current_distance){
+                    //best_cycle = cycle
+                    //We NEED a deep copy here because we have to use destroy_cycle(cycle) when we get out of the scope inner
+                    // for loop scope
+                    best_cycle->result = cycle->result;
+                    for(int k = 0; k < best_cycle->cycle_size; k++){
+                        best_cycle->vertex_cycle[k] = cycle->vertex_cycle[k];
+                    }
+                    
+                    current_distance = best_cycle->result;
+                    improved = true;
+                }
+
+                destroy_cycle(cycle);
+            }
+        }
+        //Updating the input_cycle
+        if(improved){
+            input_cycle = best_cycle;
+        }
+    }
+    return input_cycle;
+}
+
+Cycle* two_opt_swap(Cycle* current_cycle, int i, int j){
+    Cycle* cycle = initialize_cycle(current_cycle->cycle_size);
     
-    return 0.0;
+    //In this function we are removing the edges (i - 1, i) and (j, j + 1) 
+    // and adding the edges (i - 1, j) and (i, j + 1)
+
+    for(int n = 0; n <= i - 1; n++){
+        cycle->vertex_cycle[n] = current_cycle->vertex_cycle[n];
+    }
+
+    int temp = 0;
+    for (int n = i; n <= j; n++)
+    {
+        cycle->vertex_cycle[n] = current_cycle->vertex_cycle[j - temp];
+        temp++;
+    }
+
+    for(int n = j + 1; n < current_cycle->cycle_size; n++){
+        cycle->vertex_cycle[n] = current_cycle->vertex_cycle[n];
+    }
+    
+    return cycle;
+}
+
+Cycle* tsp_2Opt_Greedy(Cycle* input_cycle){
+    Cycle* best_cycle = initialize_cycle(input_cycle->cycle_size);
+    
+    int allowed_times_improved = 10;
+    int times_improved = 0;
+
+    bool improved = true;
+    while(improved && times_improved < allowed_times_improved){
+        improved = false;
+        double current_distance = input_cycle->result;
+        int size = input_cycle->cycle_size;
+        for(int i = 0; i < size - 1; i++){
+            for(int j = i + 1; j < size; j++){
+                Cycle* cycle = two_opt_swap(input_cycle, i, j);
+                cycle->result = calculate_cycle_distance(cycle);
+                
+                if(cycle->result < current_distance){                    
+                    //best_cycle = cycle;
+                    //We NEED a deep copy here because we have to use destroy_cycle(cycle) when we get out of the scope inner
+                    // for loop scope
+                    best_cycle->result = cycle->result;
+                    for(int k = 0; k < best_cycle->cycle_size; k++){
+                        best_cycle->vertex_cycle[k] = cycle->vertex_cycle[k];
+                    }
+                    
+                    current_distance = best_cycle->result;
+                    times_improved++;
+                    improved = true;
+                }
+                destroy_cycle(cycle);
+            }
+        }
+        //Updating the input_cycle
+        if(improved){
+            input_cycle = best_cycle;
+        }
+    }
+    return input_cycle;
 }
 
 Cycle* tsp_NN(Vertex vertices[], int vertex_list_size){
@@ -163,7 +273,10 @@ Cycle* tsp_NND(Vertex vertices[], int vertex_list_size){
             start = next_index;
             visited[start] = true;
             cycle_iterator++;
-            cycle->vertex_cycle[cycle_iterator] = vertices[start];
+            for(int i = cycle_iterator; i > 0; i--){
+                cycle->vertex_cycle[i] = cycle->vertex_cycle[i - 1];
+            }
+            cycle->vertex_cycle[0] = vertices[start];
         }
         current_distance = current_distance + min_distance;
         sequence_length++;
@@ -186,12 +299,12 @@ void printCycle(Cycle* cycle){
     for(int i = 0; i < cycle->cycle_size; i++){
         printf("cycle->vertex_cycle[%i].id = %i\n", i, cycle->vertex_cycle[i].id);
     }
-    printf("\nResult distance: %f\n", cycle->result);
+    printf("\nResult distance: %lf\n", cycle->result);
 }
 
 int main(int argc, char *argv[]){
-    char input_file_directory[30] = "data\\";          // Maybe could be a #define idk
-    strcat(input_file_directory, "att48.in");          // data\<input_file>
+    char input_file_directory[30] = "data\\";         // Maybe could be a #define idk
+    strcat(input_file_directory, "test.in");          // data\<input_file>
 
     FILE *file = fopen(input_file_directory, "r"); // files from the data directory are read only files
     if (file == NULL){
@@ -234,12 +347,14 @@ int main(int argc, char *argv[]){
     }
 
     Cycle* resultant_cycle = tsp_NND(vertex_list, vertex_count);
-    printCycle(resultant_cycle);
-    destroy_cycle(resultant_cycle);
 
+    resultant_cycle = tsp_2Opt_Optimal(resultant_cycle);
+    printf("%lf", resultant_cycle->result);
+
+    destroy_cycle(resultant_cycle);
     free(vertex_list);
     vertex_list = NULL;
-
+    
     fclose(file);
     return 0;
 }
