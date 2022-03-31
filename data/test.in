@@ -1,8 +1,8 @@
-NAME : att48
-COMMENT : 48 capitals of the US (Padberg/Rinaldi)
+NAME : test4
+COMMENT : teste 4 pontos
 TYPE : TSP
-DIMENSION : 48
-EDGE_WEIGHT_TYPE : ATT
+DIMENSION : 4
+EDGE_WEIGHT_TYPE : euclidean_distance
 NODE_COORD_SECTION
 1 0 0
 2 100 0

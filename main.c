@@ -304,7 +304,7 @@ void printCycle(Cycle* cycle){
 
 int main(int argc, char *argv[]){
     char input_file_directory[30] = "data\\";         // Maybe could be a #define idk
-    strcat(input_file_directory, "test.in");          // data\<input_file>
+    strcat(input_file_directory, "a280.in");          // data\<input_file>
 
     FILE *file = fopen(input_file_directory, "r"); // files from the data directory are read only files
     if (file == NULL){
@@ -330,24 +330,30 @@ int main(int argc, char *argv[]){
     // Fillig vertex_list with vertices (vertex structs) based on the input file data (id, x coordinate, y coordinate)
     while (fgets(line, sizeof(line), file))
     {
+        if(line_count == 3){
+            printf("line = %s\n", line);
+        }
         // We don't care about the first 6 lines (they are only there for header information purposes) and neither the last one (EOF string)
-        if (line_count >= HEADER_LINE_COUNT && strcmp(line, "EOF\n") != 0 && strcmp(line, "EOF \n") != 0){
+        if (line_count >= HEADER_LINE_COUNT && strcmp(line, "EOF\n") != 0 && strcmp(line, "EOF \n") != 0 && strcmp(line, "EOF") != 0){
             // Separating id, x coordinate and y coordinate (strtok is destructive btw)
             char *first_piece = strtok(line, " ");
             char *second_piece = strtok(NULL, " ");
             char *third_piece = strtok(NULL, " ");
-            
+            char *err;
+
             Vertex vertex = {.id = atoi(first_piece), 
-                            .x = (double)atoi(second_piece), 
-                            .y = (double)atoi(third_piece)};
+                            .x = strtod(second_piece, &err), 
+                            .y = strtod(third_piece, &err)};
 
             vertex_list[vertex.id - 1] = vertex;
         }
         line_count++;
     }
 
+    //printf("Starting tsp_NND...\n");
     Cycle* resultant_cycle = tsp_NND(vertex_list, vertex_count);
 
+    //printf("Starting tsp_2Opt_Optimal...\n");
     resultant_cycle = tsp_2Opt_Optimal(resultant_cycle);
     printf("%lf", resultant_cycle->result);
 
