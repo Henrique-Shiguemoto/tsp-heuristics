@@ -7,6 +7,8 @@
 #include <time.h>
 
 #define HEADER_LINE_COUNT 6         //This is just the number of lines in the header of the input files
+#define GENE_SIZE         10        //Number of chromosomes per gene
+#define MUTATION_RATE     10        //This number goes from 0 to 100
 
 typedef struct Vertex{
     int id;
@@ -20,19 +22,26 @@ typedef struct Cycle{
     Vertex vertex_cycle[];
 } Cycle;
 
-void print_vertex(Vertex);
+typedef struct Descendants{
+    Cycle* descendant1;
+    Cycle* descendant2;
+}Descendants;
+
 Cycle* initialize_cycle(int);
 void destroy_cycle(Cycle*);
 double calculate_distance(Vertex vertices[], int, int);
+double calculate_cycle_result(Cycle*);
+Cycle* tsp_2Opt_Optimal(Cycle*);
+Cycle* two_opt_swap(Cycle*, int, int);
+Cycle* tsp_2Opt_Greedy(Cycle*);
 Cycle* tsp_NN(Vertex vertices[], int);
 Cycle* tsp_NND(Vertex vertices[], int);
+Descendants* cycle_crossover(Cycle*, Cycle*);
+Descendants* order_based_crossover(Cycle*, Cycle*);
+void print_vertex(Vertex);
 void print_cycle(Cycle*);
-
-void print_vertex(Vertex v){
-    printf("ID = %i\t", v.id);
-    printf("X = %lf\t", v.x);
-    printf("Y = %lf\n", v.y);
-}
+void print_result(Cycle*);
+void check_for_duplicates(Cycle*);
 
 Cycle* initialize_cycle(int size){
     Cycle* cycle = malloc(sizeof(double) + sizeof(int) + sizeof(Vertex) * size);
@@ -56,6 +65,163 @@ void destroy_cycle(Cycle* cycle){
 
 double calculate_distance(Vertex vertices[], int i, int j){
     return sqrt(pow(vertices[i].x - vertices[j].x, 2) + pow(vertices[i].y - vertices[j].y, 2));
+}
+
+double calculate_cycle_result(Cycle* cycle){
+    double result = 0;
+    
+    for (int i = 0; i < cycle->cycle_size - 1; i++)
+    {
+        result = result + calculate_distance(cycle->vertex_cycle, i, i + 1);
+    }
+
+    result = result + calculate_distance(cycle->vertex_cycle, cycle->cycle_size - 1, 0);
+    
+    return result;
+}
+
+Cycle* tsp_2Opt_Optimal(Cycle* input_cycle){
+    Cycle* best_cycle = initialize_cycle(input_cycle->cycle_size);
+
+    bool improved = true;
+    while(improved){
+        improved = false;
+        best_cycle->result = input_cycle->result;
+        int size = input_cycle->cycle_size;
+        for(int i = 0; i < size - 1; i++){
+            for(int j = i + 1; j < size; j++){
+                
+                double gain = 0;
+                double loss = 0;
+                int i1 = i - 1;
+                int i2 = i;
+                int j1 = j;
+                int j2 = j + 1;
+                
+                if(i1 == -1){
+                    i1 = input_cycle->cycle_size-1;
+                }
+
+                if(j2 == input_cycle->cycle_size){
+                    j2 = 0;
+                }
+                
+                loss = calculate_distance(input_cycle->vertex_cycle, i1, i2) + calculate_distance(input_cycle->vertex_cycle, j1, j2);
+                gain = calculate_distance(input_cycle->vertex_cycle, i1, j1) + calculate_distance(input_cycle->vertex_cycle, i2, j2);
+
+                //If any of the and points of the two edges are equal to each other, then we just get out of the function
+                if(i1 == j1 || i1 == j2 || i2 == j1 || i2 == j2){
+                    gain = loss;
+                }
+
+                double new_result = input_cycle->result + gain - loss;
+
+                if(new_result < best_cycle->result){
+                    Cycle* cycle = two_opt_swap(input_cycle, i, j);
+
+                    //We NEED a deep copy here because we have to use destroy_cycle(cycle) when we get out of the scope inner
+                    // for loop scope
+                    best_cycle->result = new_result;
+                    for(int k = 0; k < best_cycle->cycle_size; k++){
+                        best_cycle->vertex_cycle[k] = cycle->vertex_cycle[k];
+                    }
+                    improved = true;
+                    destroy_cycle(cycle);
+                }
+            }
+        }
+        //Updating the input_cycle
+        if(improved){
+            input_cycle = best_cycle;
+        }
+    }
+    return input_cycle;
+}
+
+Cycle* two_opt_swap(Cycle* current_cycle, int i, int j){
+    Cycle* cycle = initialize_cycle(current_cycle->cycle_size);
+    
+    //In this function we are removing the edges (i - 1, i) and (j, j + 1) 
+    // and adding the edges (i - 1, j) and (i, j + 1)
+
+    for(int n = 0; n <= i - 1; n++){
+        cycle->vertex_cycle[n] = current_cycle->vertex_cycle[n];
+    }
+
+    int temp = 0;
+    for (int n = i; n <= j; n++)
+    {
+        cycle->vertex_cycle[n] = current_cycle->vertex_cycle[j - temp];
+        temp++;
+    }
+
+    for(int n = j + 1; n < current_cycle->cycle_size; n++){
+        cycle->vertex_cycle[n] = current_cycle->vertex_cycle[n];
+    }
+
+    return cycle;
+}
+
+Cycle* tsp_2Opt_Greedy(Cycle* input_cycle){
+    Cycle* best_cycle = initialize_cycle(input_cycle->cycle_size);
+    
+    int allowed_times_improved = 10;
+    int times_improved = 0;
+
+    bool improved = true;
+    while(improved && times_improved < allowed_times_improved){
+        improved = false;
+        best_cycle->result = input_cycle->result;
+        int size = input_cycle->cycle_size;
+        for(int i = 0; i < size - 1; i++){
+            for(int j = i + 1; j < size; j++){
+                
+                double gain = 0;
+                double loss = 0;
+                int i1 = i - 1;
+                int i2 = i;
+                int j1 = j;
+                int j2 = j + 1;
+                
+                if(i1 == -1){
+                    i1 = input_cycle->cycle_size-1;
+                }
+
+                if(j2 == input_cycle->cycle_size){
+                    j2 = 0;
+                }
+                
+                loss = calculate_distance(input_cycle->vertex_cycle, i1, i2) + calculate_distance(input_cycle->vertex_cycle, j1, j2);
+                gain = calculate_distance(input_cycle->vertex_cycle, i1, j1) + calculate_distance(input_cycle->vertex_cycle, i2, j2);
+
+                //If any of the and points of the two edges are equal to each other, then we just get out of the function
+                if(i1 == j1 || i1 == j2 || i2 == j1 || i2 == j2){
+                    gain = loss;
+                }
+
+                double new_result = input_cycle->result + gain - loss;
+
+                if(new_result < best_cycle->result){
+                    Cycle* cycle = two_opt_swap(input_cycle, i, j);
+
+                    //We NEED a deep copy here because we have to use destroy_cycle(cycle) when we get out of the scope inner
+                    // for loop scope
+                    best_cycle->result = best_cycle->result + gain - loss;
+                    for(int k = 0; k < best_cycle->cycle_size; k++){
+                        best_cycle->vertex_cycle[k] = cycle->vertex_cycle[k];
+                    }
+                    improved = true;
+                    times_improved++;
+                    destroy_cycle(cycle);
+                }
+            }
+        }
+        //Updating the input_cycle
+        if(improved){
+            input_cycle = best_cycle;
+        }
+    }
+    return input_cycle;
 }
 
 Cycle* tsp_NN(Vertex vertices[], int vertex_list_size){
@@ -108,7 +274,7 @@ Cycle* tsp_NN(Vertex vertices[], int vertex_list_size){
 Cycle* tsp_NND(Vertex vertices[], int vertex_list_size){
     Cycle* cycle = initialize_cycle(vertex_list_size);
     
-    srand((unsigned) time(NULL));
+    //srand(clock() % rand());
     int starting_vertex_index = rand() % vertex_list_size;
 
     int end = starting_vertex_index; 
@@ -174,22 +340,124 @@ Cycle* tsp_NND(Vertex vertices[], int vertex_list_size){
     return cycle;
 }
 
+Descendants* cycle_crossover(Cycle* father1, Cycle* father2){
+    int size_of_cycle = father1->cycle_size;
+    
+    Cycle* child1 = initialize_cycle(size_of_cycle);
+    Cycle* child2 = initialize_cycle(size_of_cycle);
+
+    //Copying cycle from father2 to child1 (RESULT IS STILL NOT COPIED YET)
+    for (int i = 0; i < size_of_cycle; i++)
+    {
+        child1->vertex_cycle[i] = father2->vertex_cycle[i];
+    }
+
+    int index = 0;
+    do
+    {
+        //Copying vertex
+        child1->vertex_cycle[index] = father1->vertex_cycle[index];
+        //Index update
+        for (int j = 0; j < size_of_cycle; j++)
+        {
+            if(father2->vertex_cycle[j].id == child1->vertex_cycle[index].id){
+                child1->vertex_cycle[j] = father1->vertex_cycle[j];
+                index = j;
+                break;
+            }
+        }
+        
+    } while (index != 0);
+    
+    //Copying cycle from father1 to child2 (RESULT IS STILL NOT COPIED YET)
+    for (int i = 0; i < size_of_cycle; i++)
+    {
+        child2->vertex_cycle[i] = father1->vertex_cycle[i];
+    }
+
+    index = 0;
+    do
+    {
+        //Copying vertex
+        child2->vertex_cycle[index] = father2->vertex_cycle[index];
+        //Index update
+        for (int j = 0; j < size_of_cycle; j++)
+        {
+            if(father1->vertex_cycle[j].id == child2->vertex_cycle[index].id){
+                child2->vertex_cycle[j] = father2->vertex_cycle[j];
+                index = j;
+                break;
+            }
+        }
+        
+    } while (index != 0);
+
+    //Updating children results
+    child1->result = calculate_cycle_result(child1);
+    child2->result = calculate_cycle_result(child2);
+
+    Descendants* descendants = malloc(sizeof(child1) + sizeof(child2));
+    descendants->descendant1 = child1;
+    descendants->descendant2 = child2;
+    return descendants;
+}
+
+Descendants* order_based_crossover(Cycle* father1, Cycle* father2){
+    Cycle* cycle1 = initialize_cycle(father1->cycle_size);
+    Cycle* cycle2 = initialize_cycle(father2->cycle_size);
+
+
+
+
+
+
+    Descendants* descendants;
+    descendants->descendant1 = cycle1;
+    descendants->descendant2 = cycle2;
+    return descendants;
+}
+
+void print_vertex(Vertex v){
+    printf("ID = %i\t", v.id);
+    printf("X = %lf\t", v.x);
+    printf("Y = %lf\n", v.y);
+}
+
 void print_cycle(Cycle* cycle){
+    printf("cycle->cycle_size = %i\n", cycle->cycle_size);
     for(int i = 0; i < cycle->cycle_size; i++){
         printf("cycle->vertex_cycle[%i].id = %i\n", i, cycle->vertex_cycle[i].id);
     }
-    printf("\nResult distance: %lf\n", cycle->result);
+    printf("Result distance: %lf\n\n", cycle->result);
+}
+
+void print_result(Cycle* cycle){
+    printf("Result = %lf\n", cycle->result);
+}
+
+void check_for_duplicates(Cycle* cycle){
+    for (int i = 0; i < cycle->cycle_size; i++)
+    {
+        for (int j = 0; j < cycle->cycle_size; j++)
+        {
+            if(i != j){
+                if(cycle->vertex_cycle[i].id == cycle->vertex_cycle[j].id){
+                printf("DUPLICATE\n");
+                }
+            }
+        }   
+    }
 }
 
 int main(int argc, char *argv[]){
     
-    if(argc < 2){
-        printf("This program needs at least 2 arguments to run: <exe_name> <input_file>");
-        exit(EXIT_FAILURE);
-    }
+    // if(argc < 2){
+    //     printf("This program needs at least 2 arguments to run: <exe_name> <input_file>");
+    //     exit(EXIT_FAILURE);
+    // }
 
     char input_file_directory[30] = "data\\";    // Maybe could be a #define idk
-    strcat(input_file_directory, argv[1]);       // data\<input_file>
+    strcat(input_file_directory, "att48.in");       // data\<input_file>
 
     FILE *file = fopen(input_file_directory, "r"); // files from the data directory are read only files
     if (file == NULL){
@@ -226,22 +494,74 @@ int main(int argc, char *argv[]){
             Vertex vertex = {.id = atoi(first_piece), 
                             .x = strtod(second_piece, &err), 
                             .y = strtod(third_piece, &err)};
-            //print_vertex(vertex);
             vertex_list[vertex.id - 1] = vertex;
         }
         line_count++;
     }
 
-    printf("Starting tsp_NN...             ");
-    Cycle* resultant_cycle_NN = tsp_NN(vertex_list, vertex_count);
-    printf("Result: %lf\n", resultant_cycle_NN->result);
-
-    printf("Starting tsp_NND...            ");
-    Cycle* resultant_cycle_NND = tsp_NND(vertex_list, vertex_count);
-    printf("Result: %lf\n", resultant_cycle_NND->result);
+    //Producing solutions
+    Cycle* gene[GENE_SIZE] = {0};
     
-    destroy_cycle(resultant_cycle_NN);
-    destroy_cycle(resultant_cycle_NND);
+    printf("Starting to fill gene[] and gene_opt[]...            \n");
+    for (int i = 0; i < GENE_SIZE; i++)
+    {
+        srand(clock() % rand() * i);
+        gene[i] = tsp_NND(vertex_list, vertex_count);
+    }
+
+    int iteration_count = 0;
+    int max_iterations = 1;
+
+    while(iteration_count < max_iterations){
+        //Chromosome selection
+        int father1_index = 0;
+        Cycle* father1 = gene[father1_index];
+
+        for(int i = 0; i < GENE_SIZE; i++){
+            if(gene[i]->result < father1->result){
+                father1 = gene[i];
+                father1_index = i;
+            }
+        }
+
+        int father2_index = 0;
+        Cycle* father2 = gene[father2_index];
+        
+        for(int i = 0; i < GENE_SIZE; i++){
+            if(gene[i]->result < father2->result && gene[i]->result != father1->result){
+                father2 = gene[i];
+                father2_index = i;
+            }
+        }
+        
+        //Crossover
+        Descendants* d = cycle_crossover(father1, father2);
+
+        //Mutation
+        if((rand() % 100) < MUTATION_RATE){
+            //MUTAÇÃO
+        }
+        
+        //Local Search
+        d->descendant1 = tsp_2Opt_Optimal(d->descendant1);
+        d->descendant2 = tsp_2Opt_Optimal(d->descendant2);
+        
+        //Update
+        destroy_cycle(gene[father1_index]);
+        destroy_cycle(gene[father2_index]);
+        gene[father1_index] = d->descendant1;
+        gene[father2_index] = d->descendant2;
+        
+        iteration_count++;
+    }
+
+    //Freeing memory
+    for (int i = 0; i < 10; i++)
+    {
+        destroy_cycle(gene[i]);
+        //destroy_cycle(gene_opt[i]);
+    }
+    
     free(vertex_list);
     vertex_list = NULL;
     
