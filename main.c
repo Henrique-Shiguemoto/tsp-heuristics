@@ -7,8 +7,10 @@
 #include <time.h>
 
 #define HEADER_LINE_COUNT 6         //This is just the number of lines in the header of the input files
-#define GENE_SIZE         10        //Number of chromosomes per gene
-#define MUTATION_RATE     10        //This number goes from 0 to 100
+
+//GENETIC ALGORITHM PARATEMERS
+#define GENE_SIZE         (5)         //Number of chromosomes per gene
+#define MUTATION_RATE     (0.01)      //This number goes from 0 to 1
 
 typedef struct Vertex{
     int id;
@@ -38,6 +40,7 @@ Cycle* tsp_NN(Vertex vertices[], int);
 Cycle* tsp_NND(Vertex vertices[], int);
 Descendants* cycle_crossover(Cycle*, Cycle*);
 Descendants* order_based_crossover(Cycle*, Cycle*);
+void mutate_cycle(Cycle*);
 void print_vertex(Vertex);
 void print_cycle(Cycle*);
 void print_result(Cycle*);
@@ -417,6 +420,23 @@ Descendants* order_based_crossover(Cycle* father1, Cycle* father2){
     return descendants;
 }
 
+void mutate_cycle(Cycle* cycle){
+    int start =  (rand() % cycle->cycle_size) / 2;
+    int finish = ((rand() % cycle->cycle_size) / 2) + (cycle->cycle_size / 2);
+
+    while(start < finish){
+        
+        Vertex v_aux = cycle->vertex_cycle[start];
+        cycle->vertex_cycle[start] = cycle->vertex_cycle[finish];
+        cycle->vertex_cycle[finish] = v_aux;        
+        
+        start++;
+        finish--;
+    }
+
+    cycle->result = calculate_cycle_result(cycle);
+}
+
 void print_vertex(Vertex v){
     printf("ID = %i\t", v.id);
     printf("X = %lf\t", v.x);
@@ -457,7 +477,7 @@ int main(int argc, char *argv[]){
     // }
 
     char input_file_directory[30] = "data\\";    // Maybe could be a #define idk
-    strcat(input_file_directory, "att48.in");       // data\<input_file>
+    strcat(input_file_directory, "burma14.in");       // data\<input_file>
 
     FILE *file = fopen(input_file_directory, "r"); // files from the data directory are read only files
     if (file == NULL){
@@ -502,7 +522,7 @@ int main(int argc, char *argv[]){
     //Producing solutions
     Cycle* gene[GENE_SIZE] = {0};
     
-    printf("Starting to fill gene[] and gene_opt[]...            \n");
+    printf("------------------- FIRST GENERATION -------------------\n\n");
     for (int i = 0; i < GENE_SIZE; i++)
     {
         srand(clock() % rand() * i);
@@ -538,8 +558,10 @@ int main(int argc, char *argv[]){
         Descendants* d = cycle_crossover(father1, father2);
 
         //Mutation
-        if((rand() % 100) < MUTATION_RATE){
-            //MUTAÇÃO
+        if(((rand() % 100) / 100) < MUTATION_RATE){
+            printf("\nMUTATED!\n");
+            mutate_cycle(d->descendant1);
+            mutate_cycle(d->descendant2);
         }
         
         //Local Search
@@ -555,11 +577,17 @@ int main(int argc, char *argv[]){
         iteration_count++;
     }
 
+
+    printf("------------------- SECOND GENERATION -------------------\n\n");
+    for (int i = 0; i < GENE_SIZE; i++)
+    {
+        print_cycle(gene[i]);
+    }
+
     //Freeing memory
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < GENE_SIZE; i++)
     {
         destroy_cycle(gene[i]);
-        //destroy_cycle(gene_opt[i]);
     }
     
     free(vertex_list);
