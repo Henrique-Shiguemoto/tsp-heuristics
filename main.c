@@ -9,8 +9,8 @@
 #define HEADER_LINE_COUNT 6         //This is just the number of lines in the header of the input files
 
 //GENETIC ALGORITHM PARATEMERS
-#define GENE_SIZE         (5)         //Number of chromosomes per gene
-#define MUTATION_RATE     (0.01)      //This number goes from 0 to 1
+#define GENE_SIZE         (10)        //Number of chromosomes per gene
+#define MUTATION_RATE     (1)         //This number goes from 0 to 100
 
 typedef struct Vertex{
     int id;
@@ -406,17 +406,17 @@ Descendants* cycle_crossover(Cycle* father1, Cycle* father2){
 }
 
 Descendants* order_based_crossover(Cycle* father1, Cycle* father2){
-    Cycle* cycle1 = initialize_cycle(father1->cycle_size);
-    Cycle* cycle2 = initialize_cycle(father2->cycle_size);
+    Cycle* child1 = initialize_cycle(father1->cycle_size);
+    Cycle* child2 = initialize_cycle(father2->cycle_size);
 
 
 
 
 
 
-    Descendants* descendants;
-    descendants->descendant1 = cycle1;
-    descendants->descendant2 = cycle2;
+    Descendants* descendants = malloc(sizeof(child1) + sizeof(child2));
+    descendants->descendant1 = child1;
+    descendants->descendant2 = child2;
     return descendants;
 }
 
@@ -476,8 +476,9 @@ int main(int argc, char *argv[]){
     //     exit(EXIT_FAILURE);
     // }
 
+    srand(time(NULL));
     char input_file_directory[30] = "data\\";    // Maybe could be a #define idk
-    strcat(input_file_directory, "burma14.in");       // data\<input_file>
+    strcat(input_file_directory, "att48.in");       // data\<input_file>
 
     FILE *file = fopen(input_file_directory, "r"); // files from the data directory are read only files
     if (file == NULL){
@@ -525,40 +526,46 @@ int main(int argc, char *argv[]){
     printf("------------------- FIRST GENERATION -------------------\n\n");
     for (int i = 0; i < GENE_SIZE; i++)
     {
-        srand(clock() % rand() * i);
         gene[i] = tsp_NND(vertex_list, vertex_count);
+        print_result(gene[i]);
     }
 
     int iteration_count = 0;
-    int max_iterations = 1;
+    int max_iterations = 10;
 
     while(iteration_count < max_iterations){
         //Chromosome selection
+        //Choosing best solution
         int father1_index = 0;
+        double best_value = DBL_MAX;
         Cycle* father1 = gene[father1_index];
-
+        
         for(int i = 0; i < GENE_SIZE; i++){
-            if(gene[i]->result < father1->result){
-                father1 = gene[i];
+            if(gene[i]->result < best_value){
+                best_value = gene[i]->result;
                 father1_index = i;
             }
         }
+        father1 = gene[father1_index];
 
+        //Choosing second best solution
         int father2_index = 0;
+        double second_best_value = DBL_MAX;
         Cycle* father2 = gene[father2_index];
         
         for(int i = 0; i < GENE_SIZE; i++){
-            if(gene[i]->result < father2->result && gene[i]->result != father1->result){
-                father2 = gene[i];
+            if(gene[i]->result > father1->result && gene[i]->result < second_best_value){
+                second_best_value = gene[i]->result;
                 father2_index = i;
             }
         }
+        father2 = gene[father2_index];
         
         //Crossover
         Descendants* d = cycle_crossover(father1, father2);
 
         //Mutation
-        if(((rand() % 100) / 100) < MUTATION_RATE){
+        if((rand() % 100) < MUTATION_RATE){
             printf("\nMUTATED!\n");
             mutate_cycle(d->descendant1);
             mutate_cycle(d->descendant2);
@@ -569,19 +576,27 @@ int main(int argc, char *argv[]){
         d->descendant2 = tsp_2Opt_Optimal(d->descendant2);
         
         //Update
-        destroy_cycle(gene[father1_index]);
-        destroy_cycle(gene[father2_index]);
-        gene[father1_index] = d->descendant1;
-        gene[father2_index] = d->descendant2;
+        int i1 = rand() % GENE_SIZE;
+        int i2 = rand() % GENE_SIZE;
+
+        while(i1 == father1_index && i2 == father2_index && i1 == i2){
+            i1 = rand() % GENE_SIZE;
+            i2 = rand() % GENE_SIZE;
+        }
+
+        destroy_cycle(gene[i1]);
+        destroy_cycle(gene[i2]);
+        gene[i1] = d->descendant1;
+        gene[i2] = d->descendant2;
         
         iteration_count++;
     }
 
 
-    printf("------------------- SECOND GENERATION -------------------\n\n");
+    printf("\n\n------------------- RESULTANT GENERATION -------------------\n\n");
     for (int i = 0; i < GENE_SIZE; i++)
     {
-        print_cycle(gene[i]);
+        print_result(gene[i]);
     }
 
     //Freeing memory
