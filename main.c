@@ -9,7 +9,7 @@
 #define HEADER_LINE_COUNT 6         //This is just the number of lines in the header of the input files
 
 //GENETIC ALGORITHM PARATEMERS
-#define GENE_SIZE         (50)        //Number of chromosomes per gene
+#define GENE_SIZE         (25)        //Number of chromosomes per gene
 #define MUTATION_RATE     (8)         //This number goes from 0 to 100
 
 typedef struct Vertex{
@@ -567,10 +567,12 @@ int main(int argc, char *argv[]){
         line_count++;
     }
 
-    //Producing solutions (CONTA EM SEGUNDOS MESMO)
+    //Producing solutions 
     Cycle* gene[GENE_SIZE] = {0};
     
-    printf("\nStarting gene solution with tsp_NND...\n");
+    printf("\nStarting gene creation with tsp_NND...\n");
+    
+    long start = time(NULL);
     for (int i = 0; i < GENE_SIZE; i++)
     {
         gene[i] = tsp_NND(vertex_list, vertex_count);
@@ -580,7 +582,6 @@ int main(int argc, char *argv[]){
     int iteration_count = 0;
     int max_iterations = 100;
     
-    //COMEÇAR UM CONTADOR AQUI
     printf("\nStarting iterations...\n");
     while(iteration_count < max_iterations){
         //Chromosome selection
@@ -645,9 +646,10 @@ int main(int argc, char *argv[]){
         
         iteration_count++;
     }
-    
-    //TERMINAR A CONTAGEM DE TEMPO AQUI
     printf("\nFinished iterations...\n");
+
+    long finish = time(NULL);
+    printf("It took %li seconds to finish...\n", finish - start);
     
     for (int i = 0; i < GENE_SIZE; i++)
     {
