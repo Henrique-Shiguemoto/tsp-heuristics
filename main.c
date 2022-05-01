@@ -9,8 +9,8 @@
 #define HEADER_LINE_COUNT 6         //This is just the number of lines in the header of the input files
 
 //GENETIC ALGORITHM PARATEMERS
-#define GENE_SIZE         (10)        //Number of chromosomes per gene
-#define MUTATION_RATE     (1)         //This number goes from 0 to 100
+#define GENE_SIZE         (50)        //Number of chromosomes per gene
+#define MUTATION_RATE     (8)         //This number goes from 0 to 100
 
 typedef struct Vertex{
     int id;
@@ -39,7 +39,7 @@ Cycle* tsp_2Opt_Greedy(Cycle*);
 Cycle* tsp_NN(Vertex vertices[], int);
 Cycle* tsp_NND(Vertex vertices[], int);
 Descendants* cycle_crossover(Cycle*, Cycle*);
-Descendants* order_based_crossover(Cycle*, Cycle*);
+Descendants* position_based_crossover(Cycle*, Cycle*);
 void mutate_cycle(Cycle*);
 void print_vertex(Vertex);
 void print_cycle(Cycle*);
@@ -405,14 +405,61 @@ Descendants* cycle_crossover(Cycle* father1, Cycle* father2){
     return descendants;
 }
 
-Descendants* order_based_crossover(Cycle* father1, Cycle* father2){
+Descendants* position_based_crossover(Cycle* father1, Cycle* father2){
+    //Chosing random position
+    #define POSITIONS_SIZE 3
+    
+    int pos[POSITIONS_SIZE] = {0};
+    pos[0] = rand() % father1->cycle_size;
+    pos[1] = rand() % father1->cycle_size;
+    pos[2] = rand() % father1->cycle_size;
+    pos[3] = rand() % father1->cycle_size;
+    pos[4] = rand() % father1->cycle_size;    
+
+    while(pos[0] == pos[1] || pos[0] == pos[2] || pos[0] == pos[3] || pos[0] == pos[4] || 
+          pos[1] == pos[2] || pos[1] == pos[3] || pos[1] == pos[4] || 
+          pos[2] == pos[3] || pos[2] == pos[4] || 
+          pos[3] == pos[4]){
+            pos[0] = rand() % father1->cycle_size;
+            pos[1] = rand() % father1->cycle_size;
+            pos[2] = rand() % father1->cycle_size;
+            pos[3] = rand() % father1->cycle_size;
+            pos[4] = rand() % father1->cycle_size;
+    }
+
     Cycle* child1 = initialize_cycle(father1->cycle_size);
     Cycle* child2 = initialize_cycle(father2->cycle_size);
 
+    for (int i = 0; i < father1->cycle_size; i++)
+    {
+        child1->vertex_cycle[i] = father1->vertex_cycle[i];
+        child2->vertex_cycle[i] = father2->vertex_cycle[i];
+    }
 
+    for (int i = 0; i < POSITIONS_SIZE; i++)
+    {
+        Vertex aux = child1->vertex_cycle[pos[i]];
+        child1->vertex_cycle[pos[i]] = father2->vertex_cycle[pos[i]]; //pretty sure it's correct here
+        for (int j = 0; j < father1->cycle_size; j++)
+        {
+            if(father1->vertex_cycle[j].id == aux.id){
+                child1->vertex_cycle[j] = father1->vertex_cycle[pos[i]];
+            }
+        }
 
+        aux = child2->vertex_cycle[pos[i]];
+        child2->vertex_cycle[pos[i]] = father1->vertex_cycle[pos[i]]; //pretty sure it's correct here
+        for (int j = 0; j < father2->cycle_size; j++)
+        {
+            if(father2->vertex_cycle[j].id == aux.id){
+                child2->vertex_cycle[j] = father2->vertex_cycle[pos[i]];
+            }
+        }
+    }
 
-
+    //Updating children results
+    child1->result = calculate_cycle_result(child1);
+    child2->result = calculate_cycle_result(child2);
 
     Descendants* descendants = malloc(sizeof(child1) + sizeof(child2));
     descendants->descendant1 = child1;
@@ -462,7 +509,7 @@ void check_for_duplicates(Cycle* cycle){
         {
             if(i != j){
                 if(cycle->vertex_cycle[i].id == cycle->vertex_cycle[j].id){
-                printf("DUPLICATE\n");
+                    printf("DUPLICATE\n");
                 }
             }
         }   
@@ -471,14 +518,14 @@ void check_for_duplicates(Cycle* cycle){
 
 int main(int argc, char *argv[]){
     
-    // if(argc < 2){
-    //     printf("This program needs at least 2 arguments to run: <exe_name> <input_file>");
-    //     exit(EXIT_FAILURE);
-    // }
+    if(argc < 2){
+        printf("This program needs at least 2 arguments to run: <exe_name> <input_file>");
+        exit(EXIT_FAILURE);
+    }
 
     srand(time(NULL));
     char input_file_directory[30] = "data\\";    // Maybe could be a #define idk
-    strcat(input_file_directory, "att48.in");       // data\<input_file>
+    strcat(input_file_directory, argv[1]);       // data\<input_file>
 
     FILE *file = fopen(input_file_directory, "r"); // files from the data directory are read only files
     if (file == NULL){
@@ -520,10 +567,10 @@ int main(int argc, char *argv[]){
         line_count++;
     }
 
-    //Producing solutions
+    //Producing solutions (CONTA EM SEGUNDOS MESMO)
     Cycle* gene[GENE_SIZE] = {0};
     
-    printf("------------------- FIRST GENERATION -------------------\n\n");
+    printf("\nStarting gene solution with tsp_NND...\n");
     for (int i = 0; i < GENE_SIZE; i++)
     {
         gene[i] = tsp_NND(vertex_list, vertex_count);
@@ -531,41 +578,48 @@ int main(int argc, char *argv[]){
     }
 
     int iteration_count = 0;
-    int max_iterations = 10;
-
+    int max_iterations = 100;
+    
+    //COMEÇAR UM CONTADOR AQUI
+    printf("\nStarting iterations...\n");
     while(iteration_count < max_iterations){
         //Chromosome selection
-        //Choosing best solution
-        int father1_index = 0;
-        double best_value = DBL_MAX;
-        Cycle* father1 = gene[father1_index];
-        
-        for(int i = 0; i < GENE_SIZE; i++){
-            if(gene[i]->result < best_value){
-                best_value = gene[i]->result;
-                father1_index = i;
-            }
-        }
-        father1 = gene[father1_index];
+        Cycle* parents[2];
+        parents[0] = initialize_cycle(gene[0]->cycle_size);
+        parents[1] = initialize_cycle(gene[0]->cycle_size);
 
-        //Choosing second best solution
-        int father2_index = 0;
-        double second_best_value = DBL_MAX;
-        Cycle* father2 = gene[father2_index];
+        int parent_index[2] = {-1, -1};
         
-        for(int i = 0; i < GENE_SIZE; i++){
-            if(gene[i]->result > father1->result && gene[i]->result < second_best_value){
-                second_best_value = gene[i]->result;
-                father2_index = i;
+        //Tournament to select both parents (3 contestants: k1, k2, k3)
+        for (int i = 0; i < 2; i++)
+        {
+            int k1 = rand() % GENE_SIZE;
+            int k2 = rand() % GENE_SIZE;
+            int k3 = rand() % GENE_SIZE;
+
+            while (k1 == k2 || k1 == k3 || k2 == k3)
+            {
+                k2 = rand() % GENE_SIZE;
+                k3 = rand() % GENE_SIZE;
+            }
+
+            if(gene[k1]->result > gene[k2]->result && gene[k1]->result > gene[k3]->result){
+                parents[i] = gene[k1];
+                parent_index[i] = k1;
+            }else if(gene[k2]->result > gene[k1]->result && gene[k2]->result > gene[k3]->result){
+                parents[i] = gene[k2];
+                parent_index[i] = k2;
+            }else{
+                parents[i] = gene[k3];
+                parent_index[i] = k3;
             }
         }
-        father2 = gene[father2_index];
-        
+
         //Crossover
-        Descendants* d = cycle_crossover(father1, father2);
+        Descendants* d = position_based_crossover(parents[0], parents[1]);
 
         //Mutation
-        if((rand() % 100) < MUTATION_RATE){
+        if((rand() % 100) <= MUTATION_RATE){
             printf("\nMUTATED!\n");
             mutate_cycle(d->descendant1);
             mutate_cycle(d->descendant2);
@@ -579,7 +633,7 @@ int main(int argc, char *argv[]){
         int i1 = rand() % GENE_SIZE;
         int i2 = rand() % GENE_SIZE;
 
-        while(i1 == father1_index && i2 == father2_index && i1 == i2){
+        while(i1 == parent_index[0] && i2 == parent_index[1] && i1 == i2){
             i1 = rand() % GENE_SIZE;
             i2 = rand() % GENE_SIZE;
         }
@@ -591,9 +645,10 @@ int main(int argc, char *argv[]){
         
         iteration_count++;
     }
-
-
-    printf("\n\n------------------- RESULTANT GENERATION -------------------\n\n");
+    
+    //TERMINAR A CONTAGEM DE TEMPO AQUI
+    printf("\nFinished iterations...\n");
+    
     for (int i = 0; i < GENE_SIZE; i++)
     {
         print_result(gene[i]);
