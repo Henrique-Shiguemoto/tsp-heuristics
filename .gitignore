@@ -1,8 +1,6 @@
-README.txt
 *.o
 *.exe
 .vscode
 *.txt
 *.pdf
 *.tsp
-results.txt

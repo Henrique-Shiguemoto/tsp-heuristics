@@ -9,10 +9,10 @@
 #define HEADER_LINE_COUNT 6         //This is just the number of lines in the header of the input files
 
 //GENETIC ALGORITHM PARATEMERS
-#define GENE_SIZE         (45)        //Number of chromosomes per gene
-#define MUTATION_RATE     (10)        //This number goes from 0 to 100
+#define GENE_SIZE         (75)        //Number of chromosomes per gene
+#define MUTATION_RATE     (5)        //This number goes from 0 to 100
 #define HOUR              3600.0
-#define TIME_IN_SECONDS   (1.5)*HOUR
+#define TIME_IN_SECONDS   (3.0)*HOUR
 #define MAX_ITERATIONS    100
 
 typedef struct Vertex{
@@ -49,6 +49,7 @@ void print_cycle(Cycle*);
 void print_result(Cycle*);
 void check_for_duplicates(Cycle*);
 Cycle* get_best_cycle_from_gene(Cycle**, int);
+Cycle* get_worst_cycle_from_gene(Cycle**, int);
 void copy_cycle(Cycle*, Cycle*);
 
 Cycle* initialize_cycle(int size){
@@ -520,6 +521,19 @@ Cycle* get_best_cycle_from_gene(Cycle** gene, int gene_size){
     return best_cycle;
 }
 
+Cycle* get_worst_cycle_from_gene(Cycle** gene, int gene_size){
+
+    Cycle* worst_cycle = gene[0];
+    for (int i = 1; i < gene_size; i++)
+    {
+        if(worst_cycle->result < gene[i]->result){
+            worst_cycle = gene[i];
+        }
+    }
+    
+    return worst_cycle;
+}
+
 void copy_cycle(Cycle* dest, Cycle* origin){
     dest->cycle_size = origin->cycle_size;
     dest->result = origin->result;
@@ -590,6 +604,7 @@ int main(int argc, char *argv[]){
     for (int i = 0; i < GENE_SIZE; i++)
     {
         gene[i] = tsp_NND(vertex_list, vertex_count);
+        // print_result(gene[i]);
     }
     
     print_result(get_best_cycle_from_gene(gene, GENE_SIZE));
@@ -631,7 +646,7 @@ int main(int argc, char *argv[]){
         }
 
         //Crossover
-        Descendants* d = position_based_crossover(parents[0], parents[1]);
+        Descendants* d = cycle_crossover(parents[0], parents[1]);
 
         //Mutation
         if((rand() % 100) <= MUTATION_RATE){
@@ -644,16 +659,20 @@ int main(int argc, char *argv[]){
         tsp_2Opt_Optimal(d->descendant2);
 
         //Update
-        int i1 = rand() % GENE_SIZE;
-        int i2 = rand() % GENE_SIZE;
+        Cycle* worst_cycle = get_worst_cycle_from_gene(gene, GENE_SIZE);
+        if((worst_cycle->result > d->descendant1->result) && (worst_cycle->result > d->descendant2->result)){
+            
+            int i1 = rand() % GENE_SIZE;
+            int i2 = rand() % GENE_SIZE;
 
-        while(i1 == parent_index[0] && i2 == parent_index[1] && i1 == i2){
-            i1 = rand() % GENE_SIZE;
-            i2 = rand() % GENE_SIZE;
+            while(i1 == parent_index[0] && i2 == parent_index[1] && i1 == i2){
+                i1 = rand() % GENE_SIZE;
+                i2 = rand() % GENE_SIZE;
+            }
+
+            copy_cycle(gene[i1], d->descendant1);
+            copy_cycle(gene[i2], d->descendant2);
         }
-
-        copy_cycle(gene[i1], d->descendant1);
-        copy_cycle(gene[i2], d->descendant2);
 
         destroy_cycle(d->descendant1);
         destroy_cycle(d->descendant2);
@@ -668,9 +687,7 @@ int main(int argc, char *argv[]){
         time_elapsed_in_seconds = finish - start;
         iterations++;
     }
-
-    print_result(get_best_cycle_from_gene(gene, GENE_SIZE));
-
+    
     //Freeing memory
     for (int i = 0; i < GENE_SIZE; i++)
     {
