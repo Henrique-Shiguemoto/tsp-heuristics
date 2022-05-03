@@ -9,8 +9,11 @@
 #define HEADER_LINE_COUNT 6         //This is just the number of lines in the header of the input files
 
 //GENETIC ALGORITHM PARATEMERS
-#define GENE_SIZE         (25)        //Number of chromosomes per gene
-#define MUTATION_RATE     (8)         //This number goes from 0 to 100
+#define GENE_SIZE         (45)        //Number of chromosomes per gene
+#define MUTATION_RATE     (10)        //This number goes from 0 to 100
+#define HOUR              3600.0
+#define TIME_IN_SECONDS   (1.5)*HOUR
+#define MAX_ITERATIONS    100
 
 typedef struct Vertex{
     int id;
@@ -33,7 +36,7 @@ Cycle* initialize_cycle(int);
 void destroy_cycle(Cycle*);
 double calculate_distance(Vertex vertices[], int, int);
 double calculate_cycle_result(Cycle*);
-Cycle* tsp_2Opt_Optimal(Cycle*);
+void tsp_2Opt_Optimal(Cycle*);
 Cycle* two_opt_swap(Cycle*, int, int);
 Cycle* tsp_2Opt_Greedy(Cycle*);
 Cycle* tsp_NN(Vertex vertices[], int);
@@ -45,11 +48,13 @@ void print_vertex(Vertex);
 void print_cycle(Cycle*);
 void print_result(Cycle*);
 void check_for_duplicates(Cycle*);
+Cycle* get_best_cycle_from_gene(Cycle**, int);
+void copy_cycle(Cycle*, Cycle*);
 
 Cycle* initialize_cycle(int size){
     Cycle* cycle = malloc(sizeof(double) + sizeof(int) + sizeof(Vertex) * size);
     
-    if(!cycle){
+    if(cycle == NULL){
         perror("Error: ");
         exit(EXIT_FAILURE);
     }
@@ -83,62 +88,52 @@ double calculate_cycle_result(Cycle* cycle){
     return result;
 }
 
-Cycle* tsp_2Opt_Optimal(Cycle* input_cycle){
+void tsp_2Opt_Optimal(Cycle* input_cycle){
     Cycle* best_cycle = initialize_cycle(input_cycle->cycle_size);
+    copy_cycle(best_cycle, input_cycle);
 
-    bool improved = true;
-    while(improved){
-        improved = false;
-        best_cycle->result = input_cycle->result;
-        int size = input_cycle->cycle_size;
-        for(int i = 0; i < size - 1; i++){
-            for(int j = i + 1; j < size; j++){
+    int size = input_cycle->cycle_size;
+    for(int i = 0; i < size - 1; i++){
+        for(int j = i + 1; j < size; j++){            
+            double gain = 0;
+            double loss = 0;
+            int i1 = i - 1;
+            int i2 = i;
+            int j1 = j;
+            int j2 = j + 1;
+            
+            if(i1 == -1){
+                i1 = input_cycle->cycle_size-1;
+            }
+
+            if(j2 == input_cycle->cycle_size){
+                j2 = 0;
+            }
+            
+            loss = calculate_distance(input_cycle->vertex_cycle, i1, i2) + calculate_distance(input_cycle->vertex_cycle, j1, j2);
+            gain = calculate_distance(input_cycle->vertex_cycle, i1, j1) + calculate_distance(input_cycle->vertex_cycle, i2, j2);
+
+            //If any of the and points of the two edges are equal to each other, then we just get out of the function
+            if(i1 == j1 || i1 == j2 || i2 == j1 || i2 == j2){
+                gain = loss;
+            }
+
+            double new_result = input_cycle->result + gain - loss;
+
+            if(new_result < best_cycle->result){
+                Cycle* aux_cycle = two_opt_swap(input_cycle, i, j);
+                aux_cycle->result = new_result;
                 
-                double gain = 0;
-                double loss = 0;
-                int i1 = i - 1;
-                int i2 = i;
-                int j1 = j;
-                int j2 = j + 1;
-                
-                if(i1 == -1){
-                    i1 = input_cycle->cycle_size-1;
-                }
-
-                if(j2 == input_cycle->cycle_size){
-                    j2 = 0;
-                }
-                
-                loss = calculate_distance(input_cycle->vertex_cycle, i1, i2) + calculate_distance(input_cycle->vertex_cycle, j1, j2);
-                gain = calculate_distance(input_cycle->vertex_cycle, i1, j1) + calculate_distance(input_cycle->vertex_cycle, i2, j2);
-
-                //If any of the and points of the two edges are equal to each other, then we just get out of the function
-                if(i1 == j1 || i1 == j2 || i2 == j1 || i2 == j2){
-                    gain = loss;
-                }
-
-                double new_result = input_cycle->result + gain - loss;
-
-                if(new_result < best_cycle->result){
-                    Cycle* cycle = two_opt_swap(input_cycle, i, j);
-
-                    //We NEED a deep copy here because we have to use destroy_cycle(cycle) when we get out of the scope inner
-                    // for loop scope
-                    best_cycle->result = new_result;
-                    for(int k = 0; k < best_cycle->cycle_size; k++){
-                        best_cycle->vertex_cycle[k] = cycle->vertex_cycle[k];
-                    }
-                    improved = true;
-                    destroy_cycle(cycle);
-                }
+                //We NEED a deep copy here because we have to use destroy_cycle(cycle) when we get out of the scope inner
+                // for loop scope
+                copy_cycle(best_cycle, aux_cycle);
+                destroy_cycle(aux_cycle);
             }
         }
-        //Updating the input_cycle
-        if(improved){
-            input_cycle = best_cycle;
-        }
     }
-    return input_cycle;
+
+    copy_cycle(input_cycle, best_cycle);
+    destroy_cycle(best_cycle);
 }
 
 Cycle* two_opt_swap(Cycle* current_cycle, int i, int j){
@@ -369,7 +364,6 @@ Descendants* cycle_crossover(Cycle* father1, Cycle* father2){
                 break;
             }
         }
-        
     } while (index != 0);
     
     //Copying cycle from father1 to child2 (RESULT IS STILL NOT COPIED YET)
@@ -392,7 +386,6 @@ Descendants* cycle_crossover(Cycle* father1, Cycle* father2){
                 break;
             }
         }
-        
     } while (index != 0);
 
     //Updating children results
@@ -407,7 +400,7 @@ Descendants* cycle_crossover(Cycle* father1, Cycle* father2){
 
 Descendants* position_based_crossover(Cycle* father1, Cycle* father2){
     //Chosing random position
-    #define POSITIONS_SIZE 3
+    #define POSITIONS_SIZE 5
     
     int pos[POSITIONS_SIZE] = {0};
     pos[0] = rand() % father1->cycle_size;
@@ -420,38 +413,35 @@ Descendants* position_based_crossover(Cycle* father1, Cycle* father2){
           pos[1] == pos[2] || pos[1] == pos[3] || pos[1] == pos[4] || 
           pos[2] == pos[3] || pos[2] == pos[4] || 
           pos[3] == pos[4]){
-            pos[0] = rand() % father1->cycle_size;
-            pos[1] = rand() % father1->cycle_size;
-            pos[2] = rand() % father1->cycle_size;
-            pos[3] = rand() % father1->cycle_size;
-            pos[4] = rand() % father1->cycle_size;
+        pos[0] = rand() % father1->cycle_size;
+        pos[1] = rand() % father1->cycle_size;
+        pos[2] = rand() % father1->cycle_size;
+        pos[3] = rand() % father1->cycle_size;
+        pos[4] = rand() % father1->cycle_size;
     }
 
     Cycle* child1 = initialize_cycle(father1->cycle_size);
-    Cycle* child2 = initialize_cycle(father2->cycle_size);
+    Cycle* child2 = initialize_cycle(father1->cycle_size);
 
-    for (int i = 0; i < father1->cycle_size; i++)
-    {
-        child1->vertex_cycle[i] = father1->vertex_cycle[i];
-        child2->vertex_cycle[i] = father2->vertex_cycle[i];
-    }
+    copy_cycle(child1, father1);
+    copy_cycle(child2, father2);
 
     for (int i = 0; i < POSITIONS_SIZE; i++)
     {
-        Vertex aux = child1->vertex_cycle[pos[i]];
-        child1->vertex_cycle[pos[i]] = father2->vertex_cycle[pos[i]]; //pretty sure it's correct here
+        int aux = child1->vertex_cycle[pos[i]].id;
+        child1->vertex_cycle[pos[i]] = father2->vertex_cycle[pos[i]];
         for (int j = 0; j < father1->cycle_size; j++)
         {
-            if(father1->vertex_cycle[j].id == aux.id){
+            if(father1->vertex_cycle[j].id == aux){
                 child1->vertex_cycle[j] = father1->vertex_cycle[pos[i]];
             }
         }
 
-        aux = child2->vertex_cycle[pos[i]];
-        child2->vertex_cycle[pos[i]] = father1->vertex_cycle[pos[i]]; //pretty sure it's correct here
+        int aux2 = child2->vertex_cycle[pos[i]].id;
+        child2->vertex_cycle[pos[i]] = father1->vertex_cycle[pos[i]];
         for (int j = 0; j < father2->cycle_size; j++)
         {
-            if(father2->vertex_cycle[j].id == aux.id){
+            if(father2->vertex_cycle[j].id == aux2){
                 child2->vertex_cycle[j] = father2->vertex_cycle[pos[i]];
             }
         }
@@ -464,6 +454,7 @@ Descendants* position_based_crossover(Cycle* father1, Cycle* father2){
     Descendants* descendants = malloc(sizeof(child1) + sizeof(child2));
     descendants->descendant1 = child1;
     descendants->descendant2 = child2;
+
     return descendants;
 }
 
@@ -516,6 +507,28 @@ void check_for_duplicates(Cycle* cycle){
     }
 }
 
+Cycle* get_best_cycle_from_gene(Cycle** gene, int gene_size){
+
+    Cycle* best_cycle = gene[0];
+    for (int i = 1; i < gene_size; i++)
+    {
+        if(best_cycle->result > gene[i]->result){
+            best_cycle = gene[i];
+        }
+    }
+    
+    return best_cycle;
+}
+
+void copy_cycle(Cycle* dest, Cycle* origin){
+    dest->cycle_size = origin->cycle_size;
+    dest->result = origin->result;
+    for (int i = 0; i < origin->cycle_size; i++)
+    {
+        dest->vertex_cycle[i] = origin->vertex_cycle[i];
+    }
+}
+
 int main(int argc, char *argv[]){
     
     if(argc < 2){
@@ -524,12 +537,13 @@ int main(int argc, char *argv[]){
     }
 
     srand(time(NULL));
+    
     char input_file_directory[30] = "data\\";    // Maybe could be a #define idk
     strcat(input_file_directory, argv[1]);       // data\<input_file>
 
     FILE *file = fopen(input_file_directory, "r"); // files from the data directory are read only files
     if (file == NULL){
-        printf("Error while searching for the input file.\nCheck if the input file name is typed correctly or type the input file's directory.");
+        printf("Error while searching for the input file.\nCheck if the input file name is typed correctly or type the input file's directory.\n");
         return -1;
     }
 
@@ -576,18 +590,17 @@ int main(int argc, char *argv[]){
     for (int i = 0; i < GENE_SIZE; i++)
     {
         gene[i] = tsp_NND(vertex_list, vertex_count);
-        print_result(gene[i]);
     }
-
-    int iteration_count = 0;
-    int max_iterations = 100;
+    
+    print_result(get_best_cycle_from_gene(gene, GENE_SIZE));
     
     printf("\nStarting iterations...\n");
-    while(iteration_count < max_iterations){
+    long time_elapsed_in_seconds = 0;
+    int iterations = 0;
+
+    while(time_elapsed_in_seconds < TIME_IN_SECONDS){
         //Chromosome selection
         Cycle* parents[2];
-        parents[0] = initialize_cycle(gene[0]->cycle_size);
-        parents[1] = initialize_cycle(gene[0]->cycle_size);
 
         int parent_index[2] = {-1, -1};
         
@@ -597,9 +610,10 @@ int main(int argc, char *argv[]){
             int k1 = rand() % GENE_SIZE;
             int k2 = rand() % GENE_SIZE;
             int k3 = rand() % GENE_SIZE;
-
-            while (k1 == k2 || k1 == k3 || k2 == k3)
+        
+            while (k1 == k2 || k1 == k3 || k2 == k3 || k1 == parent_index[0] || k2 == parent_index[0] || k3 == parent_index[0])
             {
+                k1 = rand() % GENE_SIZE;
                 k2 = rand() % GENE_SIZE;
                 k3 = rand() % GENE_SIZE;
             }
@@ -621,15 +635,14 @@ int main(int argc, char *argv[]){
 
         //Mutation
         if((rand() % 100) <= MUTATION_RATE){
-            printf("\nMUTATED!\n");
             mutate_cycle(d->descendant1);
             mutate_cycle(d->descendant2);
         }
         
         //Local Search
-        d->descendant1 = tsp_2Opt_Optimal(d->descendant1);
-        d->descendant2 = tsp_2Opt_Optimal(d->descendant2);
-        
+        tsp_2Opt_Optimal(d->descendant1);
+        tsp_2Opt_Optimal(d->descendant2);
+
         //Update
         int i1 = rand() % GENE_SIZE;
         int i2 = rand() % GENE_SIZE;
@@ -639,22 +652,24 @@ int main(int argc, char *argv[]){
             i2 = rand() % GENE_SIZE;
         }
 
-        destroy_cycle(gene[i1]);
-        destroy_cycle(gene[i2]);
-        gene[i1] = d->descendant1;
-        gene[i2] = d->descendant2;
-        
-        iteration_count++;
-    }
-    printf("\nFinished iterations...\n");
+        copy_cycle(gene[i1], d->descendant1);
+        copy_cycle(gene[i2], d->descendant2);
 
-    long finish = time(NULL);
-    printf("It took %li seconds to finish...\n", finish - start);
-    
-    for (int i = 0; i < GENE_SIZE; i++)
-    {
-        print_result(gene[i]);
+        destroy_cycle(d->descendant1);
+        destroy_cycle(d->descendant2);
+        free(d);
+
+        if((iterations % 1500) == 0){
+            printf("Iteration = %i\n", iterations);
+            print_result(get_best_cycle_from_gene(gene, GENE_SIZE));
+        }
+        
+        long finish = time(NULL);
+        time_elapsed_in_seconds = finish - start;
+        iterations++;
     }
+
+    print_result(get_best_cycle_from_gene(gene, GENE_SIZE));
 
     //Freeing memory
     for (int i = 0; i < GENE_SIZE; i++)
